@@ -71,15 +71,28 @@ export async function fetchImagePairs(): Promise<ImagePair[]> {
       // Extract category from source or use a default
       const category = extractCategory(realImg.source || aiImg.source || "General")
 
+      // Ensure URLs are properly formatted
+      let realUrl = realImg.url
+      let aiUrl = aiImg.url
+
+      // For Unsplash URLs, ensure they're direct image URLs
+      if (realUrl.includes("unsplash.com") && !realUrl.includes("?")) {
+        realUrl = `${realUrl}?w=800&h=800&fit=crop`
+      }
+      if (aiUrl.includes("unsplash.com") && !aiUrl.includes("?")) {
+        aiUrl = `${aiUrl}?w=800&h=800&fit=crop`
+      }
+
       pairs.push({
         id: i + 1,
-        leftImage: aiSide === "left" ? aiImg.url : realImg.url,
-        rightImage: aiSide === "right" ? aiImg.url : realImg.url,
+        leftImage: aiSide === "left" ? aiUrl : realUrl,
+        rightImage: aiSide === "right" ? aiUrl : realUrl,
         aiSide,
         category,
       })
     }
 
+    console.log(`[fetchImagePairs] Created ${pairs.length} image pairs`)
     return pairs
   } catch (error) {
     console.error("Error in fetchImagePairs:", error)

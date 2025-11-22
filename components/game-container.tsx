@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ImageComparison } from "@/components/image-comparison"
@@ -21,6 +21,7 @@ export function GameContainer() {
   const [timeLeft, setTimeLeft] = useState(30)
   const [showResult, setShowResult] = useState(false)
   const [lastGuessCorrect, setLastGuessCorrect] = useState<boolean | null>(null)
+  const [correctAnswers, setCorrectAnswers] = useState(0) // Track correct answers for accuracy
 
   // Fetch image pairs from Supabase on mount
   useEffect(() => {
@@ -38,9 +39,28 @@ export function GameContainer() {
     loadImages()
   }, [])
 
-  // Timer logic
+  // Define handleTimeUp before it's used in useEffect
+  const handleTimeUp = useCallback(() => {
+    setLastGuessCorrect(false)
+    setShowResult(true)
+    setStreak(0)
+  }, [])
+
+  // Reset guess state when starting a new round (when showResult becomes false after being true)
   useEffect(() => {
-    if (gameState !== "playing" || timeLeft === 0) return
+    if (!showResult && gameState === "playing" && lastGuessCorrect !== null) {
+      // Reset guess state when modal closes and we're ready for a new guess
+      // Use a small delay to ensure modal animation completes
+      const timer = setTimeout(() => {
+        setLastGuessCorrect(null)
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [showResult, gameState, lastGuessCorrect])
+
+  // Timer logic - use ref to avoid recreating interval on every timeLeft change
+  useEffect(() => {
+    if (gameState !== "playing") return
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -53,7 +73,7 @@ export function GameContainer() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [gameState, timeLeft])
+  }, [gameState, handleTimeUp]) // Only depend on gameState and handleTimeUp
 
   const startGame = () => {
     setGameState("playing")
@@ -63,43 +83,50 @@ export function GameContainer() {
     setTimeLeft(30)
     setShowResult(false)
     setLastGuessCorrect(null)
+    setCorrectAnswers(0) // Reset correct answers count
   }
 
-  const handleGuess = (guess: "left" | "right") => {
+  const handleGuess = useCallback((guess: "left" | "right") => {
     if (!imagePairs[currentRound]) return
     const currentPair = imagePairs[currentRound]
     const correct = guess === currentPair.aiSide
 
     if (correct) {
-      const timeBonus = Math.floor(timeLeft / 3)
-      const streakBonus = streak * 10
-      const roundScore = 100 + timeBonus + streakBonus
-      setScore((prev) => prev + roundScore)
+      setTimeLeft((prevTime) => {
+        const timeBonus = Math.floor(prevTime / 3)
+        setScore((prevScore) => {
+          const streakBonus = streak * 10
+          const roundScore = 100 + timeBonus + streakBonus
+          return prevScore + roundScore
+        })
+        return prevTime
+      })
       setStreak((prev) => prev + 1)
+      setCorrectAnswers((prev) => prev + 1) // Increment correct answers
     } else {
       setStreak(0)
     }
 
+    // Set the result state - this will persist until the next guess
     setLastGuessCorrect(correct)
     setShowResult(true)
-  }
+  }, [imagePairs, currentRound, streak])
 
   const handleNextRound = () => {
+    // Close the modal first
     setShowResult(false)
-    setLastGuessCorrect(null)
-
+    
     if (currentRound + 1 >= imagePairs.length) {
+      // Reset state before ending game
+      setLastGuessCorrect(null)
       endGame()
     } else {
+      // Move to next round
       setCurrentRound((prev) => prev + 1)
       setTimeLeft(30)
+      // Don't reset lastGuessCorrect here - it will be set when the user makes their next guess
+      // This prevents the flash of "wrong" when transitioning between rounds
     }
-  }
-
-  const handleTimeUp = () => {
-    setLastGuessCorrect(false)
-    setShowResult(true)
-    setStreak(0)
   }
 
   const endGame = () => {
@@ -172,7 +199,10 @@ export function GameContainer() {
   }
 
   if (gameState === "result") {
-    const accuracy = imagePairs.length > 0 ? Math.round((score / (imagePairs.length * 100)) * 100) : 0
+    // Calculate accuracy as (correct answers / total rounds) * 100, capped at 100%
+    const accuracy = imagePairs.length > 0 
+      ? Math.min(100, Math.round((correctAnswers / imagePairs.length) * 100)) 
+      : 0
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Card className="w-full max-w-2xl p-8">
@@ -240,13 +270,16 @@ export function GameContainer() {
       />
 
       <div className="flex flex-1 items-center justify-center py-8">
-        <ImageComparison
-          leftImage={imagePairs[currentRound].leftImage}
-          rightImage={imagePairs[currentRound].rightImage}
-          category={imagePairs[currentRound].category}
-          onGuess={handleGuess}
-          disabled={showResult}
-        />
+        {imagePairs[currentRound] && (
+          <ImageComparison
+            key={currentRound}
+            leftImage={imagePairs[currentRound].leftImage}
+            rightImage={imagePairs[currentRound].rightImage}
+            category={imagePairs[currentRound].category}
+            onGuess={handleGuess}
+            disabled={showResult}
+          />
+        )}
       </div>
 
       <ResultModal
