@@ -11,6 +11,7 @@ Slop Hero is a Next.js game where users attempt to distinguish between real and 
 - **Framework**: Next.js 16.0.3 (App Router)
 - **React**: 19.2.0
 - **TypeScript**: 5.x
+- **Authentication**: Boho Auth 1.1.2 (lightweight JWT-based password protection)
 - **Styling**: Tailwind CSS 4.1.9 with custom theme using OKLCH color space
 - **UI Components**: Radix UI primitives with custom shadcn/ui-style components
 - **Database**: Supabase (using @supabase/ssr for Next.js integration)
@@ -42,6 +43,9 @@ npm run lint
   - `page.tsx` - Main game page
   - `layout.tsx` - Root layout with metadata, fonts (Geist), and analytics
   - `globals.css` - Global styles with Tailwind v4 syntax and custom CSS variables
+  - `login/page.tsx` - Password entry page for Boho Auth
+  - `api/login/route.ts` - Boho Auth login endpoint (POST handler)
+- `middleware.ts` - Boho Auth middleware (protects all routes except /login)
 - `components/` - React components
   - `ui/` - Reusable UI primitives (button, card, badge, dialog, etc.)
   - `game-container.tsx` - Main game state management and UI orchestration
@@ -51,6 +55,7 @@ npm run lint
 - `lib/` - Utility functions and data access
   - `utils.ts` - cn() helper for merging Tailwind classes
   - `db-stub.ts` - Database interface layer for Supabase
+  - `boho.ts` - Boho Auth configuration and middleware setup
 - `utils/supabase/` - Supabase client configuration
   - `client.ts` - Browser client factory
   - `server.ts` - Server-side client (for Server Components/Actions)
@@ -73,6 +78,37 @@ Implemented in `game-container.tsx:68-85`:
 - Time bonus: `Math.floor(timeLeft / 3)` points
 - Streak bonus: `streak * 10` points
 - Incorrect guesses reset streak to 0
+
+### Authentication
+
+Uses **Boho Auth** for lightweight password-based route protection:
+
+**Architecture**:
+- JWT-based stateless authentication (single dependency: jose library)
+- Password protection (not user accounts - single shared password)
+- Middleware intercepts requests to protected routes before reaching application logic
+
+**Configuration** (`lib/boho.ts`):
+- Password: `process.env.BOHO_PASSWORD`
+- Secret: `process.env.BOHO_SECRET` (for JWT signing)
+- Token expiration: 1 hour
+- Login path: `/login` (where unauthenticated users are redirected)
+- Protected paths: `["/"]` (entire site requires authentication)
+- Redirect path: `/` (users land at game homepage after successful login)
+
+**Flow**:
+1. User submits password via login form (POST to `/api/login`)
+2. `app/api/login/route.ts` exports Boho's POST handler
+3. On successful auth, JWT cookie is set with 1-hour expiration
+4. Next.js middleware (if configured) checks JWT on protected route requests
+5. Invalid/missing token → redirect to `/login`
+6. Valid token → request proceeds to protected route
+
+**Implementation Files**:
+- `lib/boho.ts` - Configuration and boho instance export
+- `app/api/login/route.ts` - Login API route (exports `{ POST }` from boho.handlers)
+- `middleware.ts` - Exports boho.middleware to intercept all requests
+- `app/login/page.tsx` - Password entry form with error handling
 
 ### Data Layer
 
@@ -106,9 +142,15 @@ To add new image sources, update the `remotePatterns` array.
 
 ### Environment Variables
 
-Required for Supabase integration (set in `.env.local`):
+Required (set in `.env.local`):
+
+**Supabase**:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+
+**Boho Auth**:
+- `BOHO_PASSWORD` - Shared password for accessing protected routes
+- `BOHO_SECRET` - Secret key for JWT signing (should be a long random string)
 
 ### TypeScript Configuration
 
@@ -129,3 +171,4 @@ Game state is managed locally in `game-container.tsx` using React hooks:
 - **Category Extraction**: Simple keyword matching in `db-stub.ts:93-113` to categorize images (Landscape, Portrait, Animal, Food, Architecture)
 - **Timer Behavior**: 30-second countdown per round, handled in `game-container.tsx:42-56`
 - **Responsive Design**: Mobile-first with grid layouts that adapt at `md:` breakpoint
+- **Authentication Pattern**: Boho Auth uses minimalist approach - single shared password, JWT cookies, no user database required. Entire site is password-protected at the middleware level; unauthenticated visitors are redirected to `/login`
