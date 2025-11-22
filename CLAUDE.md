@@ -100,15 +100,17 @@ Uses **Boho Auth** for lightweight password-based route protection:
 1. User submits password via login form (POST to `/api/login`)
 2. `app/api/login/route.ts` exports Boho's POST handler
 3. On successful auth, JWT cookie is set with 1-hour expiration
-4. Next.js middleware (if configured) checks JWT on protected route requests
+4. Next.js middleware intercepts all requests and checks JWT on protected routes
 5. Invalid/missing token → redirect to `/login`
 6. Valid token → request proceeds to protected route
 
 **Implementation Files**:
 - `lib/boho.ts` - Configuration and boho instance export
 - `app/api/login/route.ts` - Login API route (exports `{ POST }` from boho.handlers)
-- `middleware.ts` - Exports boho.middleware to intercept all requests
+- `middleware.ts` - Exports boho.middleware with matcher config to exclude `/login`, `/api`, and static files
 - `app/login/page.tsx` - Password entry form with error handling
+
+**Note**: Using `middleware.ts` convention (deprecated in Next.js 16) instead of `proxy.ts` because Boho Auth 1.1.2 was built for the middleware pattern and doesn't yet support the proxy convention. The middleware includes a `matcher` config to prevent redirect loops by excluding the login page and API routes.
 
 ### Data Layer
 
