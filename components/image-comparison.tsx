@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, memo } from "react"
+import { useState, memo } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Image from "next/image"
@@ -16,12 +16,15 @@ interface ImageComparisonProps {
 function ImageComparisonComponent({ leftImage, rightImage, category, onGuess, disabled = false }: ImageComparisonProps) {
   const [leftImageError, setLeftImageError] = useState(false)
   const [rightImageError, setRightImageError] = useState(false)
+  const [shownImages, setShownImages] = useState({ leftImage, rightImage })
 
-  // Reset error states when images change
-  useEffect(() => {
+  // Reset load errors when the pair changes. Doing this during render
+  // (instead of an effect) avoids a second paint with the previous pair's errors.
+  if (shownImages.leftImage !== leftImage || shownImages.rightImage !== rightImage) {
+    setShownImages({ leftImage, rightImage })
     setLeftImageError(false)
     setRightImageError(false)
-  }, [leftImage, rightImage])
+  }
 
   return (
     <div className="w-full max-w-6xl space-y-4">

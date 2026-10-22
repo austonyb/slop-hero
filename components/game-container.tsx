@@ -156,7 +156,7 @@ export function GameContainer() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-sm text-primary-foreground">
                       1
                     </span>
-                    <span>You'll see two images side by side - one real, one AI-generated</span>
+                    <span>You&apos;ll see two images side by side - one real, one AI-generated</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-sm text-primary-foreground">
